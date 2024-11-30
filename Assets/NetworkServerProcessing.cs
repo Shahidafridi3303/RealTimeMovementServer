@@ -13,33 +13,33 @@ static public class NetworkServerProcessing
 
     public static void ReceivedMessageFromClient(string msg, int clientConnectionID, TransportPipeline pipeline)
     {
-        Debug.Log($"Server: Received message from Client {clientConnectionID}: {msg}");
         string[] csv = msg.Split(',');
         int signifier = int.Parse(csv[0]);
 
         if (signifier == ClientToServerSignifiers.UpdatePosition)
         {
-            // Update client position based on received velocity
             float velocityX = float.Parse(csv[1]);
             float velocityY = float.Parse(csv[2]);
 
+            Debug.Log($"Server: Received velocity from Client {clientConnectionID}: ({velocityX}, {velocityY})");
+
             if (clientPositions.ContainsKey(clientConnectionID))
             {
-                clientPositions[clientConnectionID] += new Vector2(velocityX, velocityY) * Time.deltaTime;
-                Debug.Log($"Server: Updated position for Client {clientConnectionID}: {clientPositions[clientConnectionID]}");
+                float fixedDeltaTime = 0.02f; // Fixed time step for updates
+                clientPositions[clientConnectionID] += new Vector2(velocityX, velocityY) * fixedDeltaTime;
 
-                // Broadcast the updated position to all clients
-                string positionUpdateMsg = $"{ServerToClientSignifiers.UpdatePosition},{clientConnectionID},{clientPositions[clientConnectionID].x},{clientPositions[clientConnectionID].y}";
+                Vector2 updatedPosition = clientPositions[clientConnectionID];
+                Debug.Log($"Server: Updated position for Client {clientConnectionID}: {updatedPosition}");
+
+                string positionUpdateMsg = $"{ServerToClientSignifiers.UpdatePosition},{clientConnectionID},{updatedPosition.x},{updatedPosition.y}";
                 foreach (var otherClientID in networkServer.GetAllConnectedClientIDs())
                 {
-                    Debug.Log($"Server: Broadcasting position update to Client {otherClientID}: {positionUpdateMsg}");
                     SendMessageToClient(positionUpdateMsg, otherClientID, TransportPipeline.ReliableAndInOrder);
+                    Debug.Log($"Server: Broadcast position update to Client {otherClientID}: {positionUpdateMsg}");
                 }
             }
         }
     }
-
-
 
     public static void SendMessageToClient(string msg, int clientConnectionID, TransportPipeline pipeline)
     {
