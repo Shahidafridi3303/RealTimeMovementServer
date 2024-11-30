@@ -9,6 +9,9 @@ static public class NetworkServerProcessing
     // Dictionary to track client positions
     static Dictionary<int, Vector2> clientPositions = new Dictionary<int, Vector2>();
 
+    // Dictionary to track client colors
+    static Dictionary<int, Color> clientColors = new Dictionary<int, Color>();
+
     #region Send and Receive Data Functions
 
     public static void ReceivedMessageFromClient(string msg, int clientConnectionID, TransportPipeline pipeline)
@@ -49,20 +52,29 @@ static public class NetworkServerProcessing
 
     public static void ConnectionEvent(int clientConnectionID)
     {
-        // Initialize position for the new client
-        clientPositions[clientConnectionID] = new Vector2(0.5f, 0.5f);
+        Debug.Log($"Server: Client connected, ID: {clientConnectionID}");
+
+        // Generate random position
+        float randomX = Random.Range(0.2f, 0.8f); // Within screen bounds
+        float randomY = Random.Range(0.2f, 0.8f); // Within screen bounds
+        clientPositions[clientConnectionID] = new Vector2(randomX, randomY);
+
+        // Generate random color
+        Color randomColor = new Color(Random.value, Random.value, Random.value);
+        clientColors[clientConnectionID] = randomColor; // Store color for consistency
 
         // Notify all clients about the new client's avatar
         foreach (var otherClientID in networkServer.GetAllConnectedClientIDs())
         {
-            string spawnMsg = $"{ServerToClientSignifiers.SpawnAvatar},{clientConnectionID},{clientPositions[clientConnectionID].x},{clientPositions[clientConnectionID].y}";
+            string spawnMsg = $"{ServerToClientSignifiers.SpawnAvatar},{clientConnectionID},{randomX},{randomY},{randomColor.r},{randomColor.g},{randomColor.b}";
             SendMessageToClient(spawnMsg, otherClientID, TransportPipeline.ReliableAndInOrder);
         }
 
         // Send existing avatars to the new client
         foreach (var kvp in clientPositions)
         {
-            string spawnMsg = $"{ServerToClientSignifiers.SpawnAvatar},{kvp.Key},{kvp.Value.x},{kvp.Value.y}";
+            Color existingColor = clientColors[kvp.Key];
+            string spawnMsg = $"{ServerToClientSignifiers.SpawnAvatar},{kvp.Key},{kvp.Value.x},{kvp.Value.y},{existingColor.r},{existingColor.g},{existingColor.b}";
             SendMessageToClient(spawnMsg, clientConnectionID, TransportPipeline.ReliableAndInOrder);
         }
     }
@@ -71,6 +83,7 @@ static public class NetworkServerProcessing
     {
         // Remove from dictionary
         clientPositions.Remove(clientConnectionID);
+        clientColors.Remove(clientConnectionID);
 
         // Notify all clients to remove the disconnected client's avatar
         string removeMsg = $"{ServerToClientSignifiers.RemoveAvatar},{clientConnectionID}";
