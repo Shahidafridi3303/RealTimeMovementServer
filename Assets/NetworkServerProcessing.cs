@@ -14,6 +14,7 @@ static public class NetworkServerProcessing
 
     #region Send and Receive Data Functions
 
+    // Only send updates if there's a significant change in position.
     public static void ReceivedMessageFromClient(string msg, int clientConnectionID, TransportPipeline pipeline)
     {
         string[] csv = msg.Split(',');
@@ -23,23 +24,28 @@ static public class NetworkServerProcessing
         {
             float velocityX = float.Parse(csv[1]);
             float velocityY = float.Parse(csv[2]);
+            Vector2 newPosition = clientPositions[clientConnectionID] + new Vector2(velocityX, velocityY) * Time.deltaTime;
+            clientPositions[clientConnectionID] = newPosition;  // Update position
 
-            if (clientPositions.ContainsKey(clientConnectionID))
+            // Broadcast this new position to all clients
+            string positionUpdateMsg = $"{ServerToClientSignifiers.UpdatePosition},{clientConnectionID},{newPosition.x},{newPosition.y}";
+            foreach (var otherClientID in networkServer.GetAllConnectedClientIDs())
             {
-                float fixedDeltaTime = 0.02f; // Fixed time step for updates
-                clientPositions[clientConnectionID] += new Vector2(velocityX, velocityY) * fixedDeltaTime;
-
-                Vector2 updatedPosition = clientPositions[clientConnectionID];
-
-                // Broadcast updated position to all clients
-                string positionUpdateMsg = $"{ServerToClientSignifiers.UpdatePosition},{clientConnectionID},{updatedPosition.x},{updatedPosition.y}";
-                foreach (var otherClientID in networkServer.GetAllConnectedClientIDs())
-                {
-                    SendMessageToClient(positionUpdateMsg, otherClientID, TransportPipeline.ReliableAndInOrder);
-                }
+                SendMessageToClient(positionUpdateMsg, otherClientID, TransportPipeline.ReliableAndInOrder);
             }
         }
     }
+
+
+    private static void BroadcastPositionUpdate(int clientID, Vector2 position)
+    {
+        string message = $"{ServerToClientSignifiers.UpdatePosition},{clientID},{position.x},{position.y}";
+        foreach (int otherClientID in networkServer.GetAllConnectedClientIDs())
+        {
+            SendMessageToClient(message, otherClientID, TransportPipeline.ReliableAndInOrder);
+        }
+    }
+
 
     public static void SendMessageToClient(string msg, int clientConnectionID, TransportPipeline pipeline)
     {
@@ -54,30 +60,37 @@ static public class NetworkServerProcessing
     {
         Debug.Log($"Server: Client connected, ID: {clientConnectionID}");
 
-        // Generate random position
-        float randomX = Random.Range(0.2f, 0.8f); // Within screen bounds
-        float randomY = Random.Range(0.2f, 0.8f); // Within screen bounds
-        clientPositions[clientConnectionID] = new Vector2(randomX, randomY);
-
-        // Generate random color
+        // Generate random position and color
+        float randomX = Random.Range(0.2f, 0.8f);
+        float randomY = Random.Range(0.2f, 0.8f);
         Color randomColor = new Color(Random.value, Random.value, Random.value);
-        clientColors[clientConnectionID] = randomColor; // Store color for consistency
 
-        // Notify all clients about the new client's avatar
-        foreach (var otherClientID in networkServer.GetAllConnectedClientIDs())
+        // Store the new client's data
+        clientPositions[clientConnectionID] = new Vector2(randomX, randomY);
+        clientColors[clientConnectionID] = randomColor;
+
+        // Notify all other clients about the new client
+        string newClientSpawnMsg = $"{ServerToClientSignifiers.SpawnAvatar},{clientConnectionID},{randomX},{randomY},{randomColor.r},{randomColor.g},{randomColor.b}";
+        foreach (int otherClientID in networkServer.GetAllConnectedClientIDs())
         {
-            string spawnMsg = $"{ServerToClientSignifiers.SpawnAvatar},{clientConnectionID},{randomX},{randomY},{randomColor.r},{randomColor.g},{randomColor.b}";
-            SendMessageToClient(spawnMsg, otherClientID, TransportPipeline.ReliableAndInOrder);
+            if (otherClientID != clientConnectionID) // Avoid sending to self
+            {
+                SendMessageToClient(newClientSpawnMsg, otherClientID, TransportPipeline.ReliableAndInOrder);
+            }
         }
 
-        // Send existing avatars to the new client
-        foreach (var kvp in clientPositions)
+        // Send existing avatars only to the new client
+        foreach (KeyValuePair<int, Vector2> kvp in clientPositions)
         {
-            Color existingColor = clientColors[kvp.Key];
-            string spawnMsg = $"{ServerToClientSignifiers.SpawnAvatar},{kvp.Key},{kvp.Value.x},{kvp.Value.y},{existingColor.r},{existingColor.g},{existingColor.b}";
-            SendMessageToClient(spawnMsg, clientConnectionID, TransportPipeline.ReliableAndInOrder);
+            if (kvp.Key != clientConnectionID) // Don't resend to the new client
+            {
+                Color existingColor = clientColors[kvp.Key];
+                string spawnMsg = $"{ServerToClientSignifiers.SpawnAvatar},{kvp.Key},{kvp.Value.x},{kvp.Value.y},{existingColor.r},{existingColor.g},{existingColor.b}";
+                SendMessageToClient(spawnMsg, clientConnectionID, TransportPipeline.ReliableAndInOrder);
+            }
         }
     }
+
 
     public static void DisconnectionEvent(int clientConnectionID)
     {
