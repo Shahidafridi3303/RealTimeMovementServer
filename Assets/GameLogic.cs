@@ -1,5 +1,3 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 
 public class GameLogic : MonoBehaviour
@@ -9,10 +7,8 @@ public class GameLogic : MonoBehaviour
         NetworkServerProcessing.SetGameLogic(this);
     }
 
-    void Update()
+    public static void SetGameLogic(GameLogic logic)
     {
-        if (Input.GetKeyDown(KeyCode.A))
-            NetworkServerProcessing.SendMessageToClient("2,Hello client's world, sincerely your network server", 0, TransportPipeline.ReliableAndInOrder);
+        NetworkServerProcessing.SetGameLogic(logic);
     }
-
 }

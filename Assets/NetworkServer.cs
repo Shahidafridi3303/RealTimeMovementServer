@@ -51,6 +51,16 @@ public class NetworkServer : MonoBehaviour
         }
     }
 
+    public IEnumerable<int> GetAllConnectedClientIDs()
+    {
+        return idToConnectionLookup.Keys;
+    }
+
+    public static NetworkServer GetNetworkServer()
+    {
+        return FindObjectOfType<NetworkServer>();
+    }
+
     void OnDestroy()
     {
         networkDriver.Dispose();

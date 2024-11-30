@@ -4,6 +4,7 @@ using UnityEngine;
 static public class NetworkServerProcessing
 {
     static NetworkServer networkServer;
+    static GameLogic gameLogic;
 
     // Dictionary to track client positions
     static Dictionary<int, Vector2> clientPositions = new Dictionary<int, Vector2>();
@@ -83,7 +84,15 @@ static public class NetworkServerProcessing
 
     #endregion
 
+    #region Setup Methods
+
     public static void SetNetworkServer(NetworkServer server) => networkServer = server;
+
+    public static NetworkServer GetNetworkServer() => networkServer;
+
+    public static void SetGameLogic(GameLogic logic) => gameLogic = logic;
+
+    #endregion
 }
 
 #region Protocol Signifiers
