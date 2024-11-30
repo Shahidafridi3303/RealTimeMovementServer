@@ -21,21 +21,18 @@ static public class NetworkServerProcessing
             float velocityX = float.Parse(csv[1]);
             float velocityY = float.Parse(csv[2]);
 
-            Debug.Log($"Server: Received velocity from Client {clientConnectionID}: ({velocityX}, {velocityY})");
-
             if (clientPositions.ContainsKey(clientConnectionID))
             {
                 float fixedDeltaTime = 0.02f; // Fixed time step for updates
                 clientPositions[clientConnectionID] += new Vector2(velocityX, velocityY) * fixedDeltaTime;
 
                 Vector2 updatedPosition = clientPositions[clientConnectionID];
-                Debug.Log($"Server: Updated position for Client {clientConnectionID}: {updatedPosition}");
 
+                // Broadcast updated position to all clients
                 string positionUpdateMsg = $"{ServerToClientSignifiers.UpdatePosition},{clientConnectionID},{updatedPosition.x},{updatedPosition.y}";
                 foreach (var otherClientID in networkServer.GetAllConnectedClientIDs())
                 {
                     SendMessageToClient(positionUpdateMsg, otherClientID, TransportPipeline.ReliableAndInOrder);
-                    Debug.Log($"Server: Broadcast position update to Client {otherClientID}: {positionUpdateMsg}");
                 }
             }
         }
@@ -52,8 +49,6 @@ static public class NetworkServerProcessing
 
     public static void ConnectionEvent(int clientConnectionID)
     {
-        Debug.Log($"Server: Client connected, ID: {clientConnectionID}");
-
         // Initialize position for the new client
         clientPositions[clientConnectionID] = new Vector2(0.5f, 0.5f);
 
@@ -74,8 +69,6 @@ static public class NetworkServerProcessing
 
     public static void DisconnectionEvent(int clientConnectionID)
     {
-        Debug.Log($"Server: Client disconnected, ID: {clientConnectionID}");
-
         // Remove from dictionary
         clientPositions.Remove(clientConnectionID);
 
