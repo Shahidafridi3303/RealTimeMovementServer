@@ -52,16 +52,18 @@ static public class NetworkServerProcessing
         }
 
         // Notify all other clients about the new client
+        Vector2 spawnPosition = clientPositions[clientConnectionID];
         Color newColor = clientColors[clientConnectionID];
         foreach (var otherClientID in networkServer.GetAllConnectedClientIDs())
         {
             if (otherClientID != clientConnectionID)
             {
-                string spawnMsg = $"{ServerToClientSignifiers.SpawnAvatar},{clientConnectionID},{randomX},{randomY},{newColor.r},{newColor.g},{newColor.b}";
+                string spawnMsg = $"{ServerToClientSignifiers.SpawnAvatar},{clientConnectionID},{spawnPosition.x},{spawnPosition.y},{newColor.r},{newColor.g},{newColor.b}";
                 SendMessageToClient(spawnMsg, otherClientID, TransportPipeline.ReliableAndInOrder);
             }
         }
     }
+
 
     public static void DisconnectionEvent(int clientConnectionID)
     {
@@ -108,7 +110,6 @@ static public class NetworkServerProcessing
         string positionUpdateMsg = $"{ServerToClientSignifiers.UpdatePosition},{clientConnectionID},{position.x},{position.y}";
         foreach (var otherClientID in networkServer.GetAllConnectedClientIDs())
         {
-            // Send position updates to all clients, including the originating client
             SendMessageToClient(positionUpdateMsg, otherClientID, TransportPipeline.ReliableAndInOrder);
         }
     }
@@ -121,14 +122,14 @@ static public class NetworkServerProcessing
 
 static public class ClientToServerSignifiers
 {
-    public const int UpdatePosition = 1; // Sent when a client updates their position
+    public const int UpdatePosition = 1; 
 }
 
 static public class ServerToClientSignifiers
 {
-    public const int SpawnAvatar = 1;   // Sent to spawn an avatar
-    public const int UpdatePosition = 2; // Sent to update a client's position
-    public const int RemoveAvatar = 3;   // Sent to remove a disconnected client's avatar
+    public const int SpawnAvatar = 1;  
+    public const int UpdatePosition = 2;
+    public const int RemoveAvatar = 3; 
 }
 
 #endregion
