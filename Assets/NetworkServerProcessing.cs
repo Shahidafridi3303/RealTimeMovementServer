@@ -9,10 +9,11 @@ static public class NetworkServerProcessing
     // Track client positions and colors
     static Dictionary<int, Vector2> clientPositions = new Dictionary<int, Vector2>();
     static Dictionary<int, Color> clientColors = new Dictionary<int, Color>();
+    static Dictionary<int, float> lastUpdateTimes = new Dictionary<int, float>();
+    private const float UpdateInterval = 0.1f; // Send updates every 100ms
 
     #region Data Handling
 
-    // Handle incoming data from clients
     public static void ReceivedMessageFromClient(string msg, int clientConnectionID, TransportPipeline pipeline)
     {
         string[] csv = msg.Split(',');
@@ -20,14 +21,12 @@ static public class NetworkServerProcessing
 
         if (signifier == ClientToServerSignifiers.UpdatePosition)
         {
-            // Update the client's position based on received data
             float velocityX = float.Parse(csv[1]);
             float velocityY = float.Parse(csv[2]);
             UpdateClientPosition(clientConnectionID, velocityX, velocityY);
         }
     }
 
-    // Send a message to a specific client
     public static void SendMessageToClient(string msg, int clientConnectionID, TransportPipeline pipeline)
     {
         networkServer.SendMessageToClient(msg, clientConnectionID, pipeline);
@@ -37,39 +36,38 @@ static public class NetworkServerProcessing
 
     #region Connection Events
 
-    // Called when a new client connects
     public static void ConnectionEvent(int clientConnectionID)
     {
         float randomX = Random.Range(0.2f, 0.8f);
         float randomY = Random.Range(0.2f, 0.8f);
         clientPositions[clientConnectionID] = new Vector2(randomX, randomY);
+        clientColors[clientConnectionID] = new Color(Random.value, Random.value, Random.value);
 
-        Color randomColor = new Color(Random.value, Random.value, Random.value);
-        clientColors[clientConnectionID] = randomColor;
-
-        // Notify all clients about the new avatar
-        foreach (var otherClientID in networkServer.GetAllConnectedClientIDs())
-        {
-            string spawnMsg = $"{ServerToClientSignifiers.SpawnAvatar},{clientConnectionID},{randomX},{randomY},{randomColor.r},{randomColor.g},{randomColor.b}";
-            SendMessageToClient(spawnMsg, otherClientID, TransportPipeline.ReliableAndInOrder);
-        }
-
-        // Send existing avatars to the new client
+        // Notify new client about all existing avatars
         foreach (var kvp in clientPositions)
         {
-            Color existingColor = clientColors[kvp.Key];
-            string spawnMsg = $"{ServerToClientSignifiers.SpawnAvatar},{kvp.Key},{kvp.Value.x},{kvp.Value.y},{existingColor.r},{existingColor.g},{existingColor.b}";
+            Color color = clientColors[kvp.Key];
+            string spawnMsg = $"{ServerToClientSignifiers.SpawnAvatar},{kvp.Key},{kvp.Value.x},{kvp.Value.y},{color.r},{color.g},{color.b}";
             SendMessageToClient(spawnMsg, clientConnectionID, TransportPipeline.ReliableAndInOrder);
+        }
+
+        // Notify all other clients about the new client
+        Color newColor = clientColors[clientConnectionID];
+        foreach (var otherClientID in networkServer.GetAllConnectedClientIDs())
+        {
+            if (otherClientID != clientConnectionID)
+            {
+                string spawnMsg = $"{ServerToClientSignifiers.SpawnAvatar},{clientConnectionID},{randomX},{randomY},{newColor.r},{newColor.g},{newColor.b}";
+                SendMessageToClient(spawnMsg, otherClientID, TransportPipeline.ReliableAndInOrder);
+            }
         }
     }
 
-    // Called when a client disconnects
     public static void DisconnectionEvent(int clientConnectionID)
     {
         clientPositions.Remove(clientConnectionID);
         clientColors.Remove(clientConnectionID);
 
-        // Notify all clients to remove the disconnected client's avatar
         string removeMsg = $"{ServerToClientSignifiers.RemoveAvatar},{clientConnectionID}";
         foreach (var otherClientID in networkServer.GetAllConnectedClientIDs())
         {
@@ -89,27 +87,38 @@ static public class NetworkServerProcessing
 
     #region Helper Methods
 
-    // Update the position of a client based on velocity data
     private static void UpdateClientPosition(int clientConnectionID, float velocityX, float velocityY)
     {
         if (clientPositions.ContainsKey(clientConnectionID))
         {
-            clientPositions[clientConnectionID] += new Vector2(velocityX, velocityY) * 0.02f; // Fixed time step
-            Vector2 updatedPosition = clientPositions[clientConnectionID];
-
-            // Broadcast updated position to all clients
-            string positionUpdateMsg = $"{ServerToClientSignifiers.UpdatePosition},{clientConnectionID},{updatedPosition.x},{updatedPosition.y}";
-            foreach (var otherClientID in networkServer.GetAllConnectedClientIDs())
+            float currentTime = Time.time;
+            if (!lastUpdateTimes.ContainsKey(clientConnectionID) || currentTime - lastUpdateTimes[clientConnectionID] >= UpdateInterval)
             {
-                SendMessageToClient(positionUpdateMsg, otherClientID, TransportPipeline.ReliableAndInOrder);
+                clientPositions[clientConnectionID] += new Vector2(velocityX, velocityY) * 0.02f;
+                lastUpdateTimes[clientConnectionID] = currentTime;
+
+                Vector2 updatedPosition = clientPositions[clientConnectionID];
+                BroadcastPositionUpdate(clientConnectionID, updatedPosition);
             }
         }
     }
+
+    private static void BroadcastPositionUpdate(int clientConnectionID, Vector2 position)
+    {
+        string positionUpdateMsg = $"{ServerToClientSignifiers.UpdatePosition},{clientConnectionID},{position.x},{position.y}";
+        foreach (var otherClientID in networkServer.GetAllConnectedClientIDs())
+        {
+            // Send position updates to all clients, including the originating client
+            SendMessageToClient(positionUpdateMsg, otherClientID, TransportPipeline.ReliableAndInOrder);
+        }
+    }
+
 
     #endregion
 }
 
 #region Protocol Signifiers
+
 static public class ClientToServerSignifiers
 {
     public const int UpdatePosition = 1; // Sent when a client updates their position
@@ -121,4 +130,5 @@ static public class ServerToClientSignifiers
     public const int UpdatePosition = 2; // Sent to update a client's position
     public const int RemoveAvatar = 3;   // Sent to remove a disconnected client's avatar
 }
+
 #endregion
